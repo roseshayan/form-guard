@@ -1,0 +1,20 @@
+{
+    "name": "roseshayan/form-guard",
+    "description": "A secure, zero-dependency, and lightweight PHP form validation and sanitization library.",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Shayan Namayandeh",
+            "homepage": "https://github.com/roseshayan"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "RoseShayan\\FormGuard\\": "src/"
+        }
+    },
+    "require": {
+        "php": ">=8.1"
+    }
+}
