@@ -21,7 +21,7 @@ final class BuiltInRules
         'min_length', 'max_length', 'length', 'min_value', 'max_value',
         'in', 'not_in', 'same', 'matches', 'different', 'confirmed',
         'regex', 'date', 'date_format', 'json', 'accepted', 'declined',
-        'starts_with', 'ends_with', 'contains', 'ir_mobile',
+        'starts_with', 'ends_with', 'contains',
     ];
 
     private function __construct()
@@ -30,7 +30,7 @@ final class BuiltInRules
 
     public static function exists(string $rule): bool
     {
-        return in_array($rule, self::NAMES, true);
+        return in_array($rule, self::NAMES, true) || IranianRules::exists($rule);
     }
 
     /**
@@ -104,8 +104,9 @@ final class BuiltInRules
             'starts_with' => self::startsWith($value, $params),
             'ends_with' => self::endsWith($value, $params),
             'contains' => self::contains($value, $params),
-            'ir_mobile' => self::iranMobile($value),
-            default => throw InvalidRuleException::unknown($rule),
+            default => IranianRules::exists($rule)
+                ? IranianRules::validate($rule, $value)
+                : throw InvalidRuleException::unknown($rule),
         };
     }
 
@@ -440,18 +441,6 @@ final class BuiltInRules
         }
 
         return is_string($value) && str_contains($value, $params[0]);
-    }
-
-    private static function iranMobile(mixed $value): bool
-    {
-        if (!is_string($value) && !is_int($value)) {
-            return false;
-        }
-
-        $normalized = preg_replace('/[\s()-]+/', '', (string) $value);
-
-        return $normalized !== null
-            && preg_match('/^(?:\+98|0098|98|0)?9\d{9}$/D', $normalized) === 1;
     }
 
     private static function toComparableString(mixed $value): ?string
