@@ -1,5 +1,11 @@
 # FormGuard
 
+[![CI](https://github.com/roseshayan/form-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/roseshayan/form-guard/actions/workflows/ci.yml)
+[![Latest Stable Version](https://img.shields.io/packagist/v/roseshayan/form-guard.svg)](https://packagist.org/packages/roseshayan/form-guard)
+[![Total Downloads](https://img.shields.io/packagist/dt/roseshayan/form-guard.svg)](https://packagist.org/packages/roseshayan/form-guard)
+[![PHP Version](https://img.shields.io/packagist/php-v/roseshayan/form-guard.svg)](https://packagist.org/packages/roseshayan/form-guard)
+[![License](https://img.shields.io/packagist/l/roseshayan/form-guard.svg)](LICENSE)
+
 A lightweight, framework-agnostic PHP validation library for forms, APIs, and plain PHP applications, with first-class rules for common Iranian form fields.
 
 FormGuard gives you a small Laravel-style validation DSL without requiring Laravel, Symfony, or any other framework. It supports nested data, wildcard fields, custom messages, inline custom rules, uploaded files, Iranian identifiers and banking fields, and safe whitelisting through `validated()`.
@@ -25,17 +31,16 @@ FormGuard gives you a small Laravel-style validation DSL without requiring Larav
 
 ## Installation
 
-Install the stable package from Packagist:
+Install the latest stable release from Packagist:
 
 ```bash
 composer require roseshayan/form-guard
 ```
 
-Until the first Packagist release is registered, the repository can also be installed directly from GitHub:
+To stay on the 1.x release line:
 
 ```bash
-composer config repositories.form-guard vcs https://github.com/roseshayan/form-guard.git
-composer require roseshayan/form-guard:dev-main
+composer require "roseshayan/form-guard:^1.0"
 ```
 
 ## Quick start
