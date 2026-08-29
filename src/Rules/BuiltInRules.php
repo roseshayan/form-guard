@@ -65,10 +65,13 @@ final class BuiltInRules
             'extensions' => self::extensions($value, $params),
             'email' => is_string($value) && filter_var($value, FILTER_VALIDATE_EMAIL) !== false,
             'url' => is_string($value) && filter_var($value, FILTER_VALIDATE_URL) !== false,
-            'uuid' => is_string($value) && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iD', $value) === 1,
+            'uuid' => is_string($value)
+                && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iD', $value) === 1,
             'ip' => is_string($value) && filter_var($value, FILTER_VALIDATE_IP) !== false,
-            'ipv4' => is_string($value) && filter_var($value, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false,
-            'ipv6' => is_string($value) && filter_var($value, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false,
+            'ipv4' => is_string($value)
+                && filter_var($value, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false,
+            'ipv6' => is_string($value)
+                && filter_var($value, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false,
             'alpha' => is_string($value) && preg_match('/^\p{L}+$/uD', $value) === 1,
             'alpha_num' => is_string($value) && preg_match('/^[\p{L}\p{N}]+$/uD', $value) === 1,
             'alpha_dash' => is_string($value) && preg_match('/^[\p{L}\p{N}_-]+$/uD', $value) === 1,
@@ -76,18 +79,24 @@ final class BuiltInRules
             'max' => self::compareMeasure($value, $params, $fieldRuleNames, 'max'),
             'between' => self::between($value, $params, $fieldRuleNames),
             'size' => self::size($value, $params, $fieldRuleNames),
-            'min_length' => is_string($value) && mb_strlen($value, 'UTF-8') >= self::numericParam($params, 'min_length'),
-            'max_length' => is_string($value) && mb_strlen($value, 'UTF-8') <= self::numericParam($params, 'max_length'),
-            'length' => is_string($value) && mb_strlen($value, 'UTF-8') === (int) self::numericParam($params, 'length'),
-            'min_value' => is_numeric($value) && (float) $value >= self::numericParam($params, 'min_value'),
-            'max_value' => is_numeric($value) && (float) $value <= self::numericParam($params, 'max_value'),
+            'min_length' => is_string($value)
+                && mb_strlen($value, 'UTF-8') >= self::numericParam($params, 'min_length'),
+            'max_length' => is_string($value)
+                && mb_strlen($value, 'UTF-8') <= self::numericParam($params, 'max_length'),
+            'length' => is_string($value)
+                && mb_strlen($value, 'UTF-8') === (int) self::numericParam($params, 'length'),
+            'min_value' => is_numeric($value)
+                && (float) $value >= self::numericParam($params, 'min_value'),
+            'max_value' => is_numeric($value)
+                && (float) $value <= self::numericParam($params, 'max_value'),
             'in' => self::in($value, $params, false),
             'not_in' => self::in($value, $params, true),
             'same', 'matches' => $value === Arr::get($data, self::fieldParam($params, $rule)),
             'different' => $value !== Arr::get($data, self::fieldParam($params, 'different')),
-            'confirmed' => Arr::has($data, $field . '_confirmation') && $value === Arr::get($data, $field . '_confirmation'),
+            'confirmed' => Arr::has($data, $field . '_confirmation')
+                && $value === Arr::get($data, $field . '_confirmation'),
             'regex' => self::regex($value, $params),
-            'date' => (is_string($value) || is_int($value)) && strtotime((string) $value) !== false,
+            'date' => self::date($value),
             'date_format' => self::dateFormat($value, $params),
             'json' => self::json($value),
             'accepted' => in_array($value, ['yes', 'on', '1', 1, true, 'true'], true),
@@ -120,20 +129,31 @@ final class BuiltInRules
             || (is_string($value) && preg_match('/^[+-]?\d+$/D', $value) === 1);
     }
 
-    /** @param list<string> $params @param array<string, mixed> $data */
+    /**
+     * @param list<string> $params
+     * @param array<string, mixed> $data
+     */
     private static function requiredIf(mixed $value, array $params, string $field, array $data): bool
     {
         if (count($params) < 2) {
-            throw InvalidRuleException::malformed('required_if', 'expected other field and at least one value');
+            throw InvalidRuleException::malformed(
+                'required_if',
+                'expected other field and at least one value'
+            );
         }
 
-        $other = array_shift($params);
-        $required = $other !== null && in_array((string) Arr::get($data, $other), $params, true);
+        $other = $params[0];
+        $expectedValues = array_slice($params, 1);
+        $otherValue = self::toComparableString(Arr::get($data, $other));
+        $required = $otherValue !== null && in_array($otherValue, $expectedValues, true);
 
         return !$required || (Arr::has($data, $field) && !self::isEmpty($value));
     }
 
-    /** @param list<string> $params @param array<string, mixed> $data */
+    /**
+     * @param list<string> $params
+     * @param array<string, mixed> $data
+     */
     private static function requiredWith(mixed $value, array $params, string $field, array $data): bool
     {
         if ($params === []) {
@@ -149,7 +169,10 @@ final class BuiltInRules
         return true;
     }
 
-    /** @param list<string> $params @param array<string, mixed> $data */
+    /**
+     * @param list<string> $params
+     * @param array<string, mixed> $data
+     */
     private static function requiredWithout(mixed $value, array $params, string $field, array $data): bool
     {
         if ($params === []) {
@@ -181,9 +204,11 @@ final class BuiltInRules
             return false;
         }
 
-        return in_array($file->detectedMimeType(), [
-            'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif',
-        ], true);
+        return in_array(
+            $file->detectedMimeType(),
+            ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'],
+            true
+        );
     }
 
     /** @param list<string> $params */
@@ -231,9 +256,16 @@ final class BuiltInRules
         return in_array($file->extension(), $allowed, true);
     }
 
-    /** @param list<string> $params @param list<string> $fieldRuleNames */
-    private static function compareMeasure(mixed $value, array $params, array $fieldRuleNames, string $rule): bool
-    {
+    /**
+     * @param list<string> $params
+     * @param list<string> $fieldRuleNames
+     */
+    private static function compareMeasure(
+        mixed $value,
+        array $params,
+        array $fieldRuleNames,
+        string $rule
+    ): bool {
         $measure = self::measure($value, $fieldRuleNames);
         if ($measure === null) {
             return false;
@@ -244,7 +276,10 @@ final class BuiltInRules
         return $rule === 'min' ? $measure >= $target : $measure <= $target;
     }
 
-    /** @param list<string> $params @param list<string> $fieldRuleNames */
+    /**
+     * @param list<string> $params
+     * @param list<string> $fieldRuleNames
+     */
     private static function between(mixed $value, array $params, array $fieldRuleNames): bool
     {
         if (count($params) !== 2 || !is_numeric($params[0]) || !is_numeric($params[1])) {
@@ -258,7 +293,10 @@ final class BuiltInRules
             && $measure <= (float) $params[1];
     }
 
-    /** @param list<string> $params @param list<string> $fieldRuleNames */
+    /**
+     * @param list<string> $params
+     * @param list<string> $fieldRuleNames
+     */
     private static function size(mixed $value, array $params, array $fieldRuleNames): bool
     {
         $measure = self::measure($value, $fieldRuleNames);
@@ -269,7 +307,10 @@ final class BuiltInRules
     /** @param list<string> $fieldRuleNames */
     private static function measure(mixed $value, array $fieldRuleNames): float|int|null
     {
-        if ((in_array('numeric', $fieldRuleNames, true) || in_array('integer', $fieldRuleNames, true)) && is_numeric($value)) {
+        if (
+            (in_array('numeric', $fieldRuleNames, true) || in_array('integer', $fieldRuleNames, true))
+            && is_numeric($value)
+        ) {
             return (float) $value;
         }
 
@@ -288,10 +329,14 @@ final class BuiltInRules
     private static function in(mixed $value, array $params, bool $negated): bool
     {
         if ($params === []) {
-            throw InvalidRuleException::malformed($negated ? 'not_in' : 'in', 'expected at least one value');
+            throw InvalidRuleException::malformed(
+                $negated ? 'not_in' : 'in',
+                'expected at least one value'
+            );
         }
 
-        $found = in_array((string) $value, $params, true);
+        $comparable = self::toComparableString($value);
+        $found = $comparable !== null && in_array($comparable, $params, true);
 
         return $negated ? !$found : $found;
     }
@@ -315,22 +360,33 @@ final class BuiltInRules
         return $result === 1;
     }
 
-    /** @param list<string> $params */
-    private static function dateFormat(mixed $value, array $params): bool
+    private static function date(mixed $value): bool
     {
-        if (count($params) !== 1 || $params[0] === '' || !is_string($value)) {
-            if (count($params) !== 1 || ($params[0] ?? '') === '') {
-                throw InvalidRuleException::malformed('date_format', 'expected one date format');
-            }
+        if (!is_string($value) && !is_int($value)) {
             return false;
         }
 
-        $date = DateTimeImmutable::createFromFormat('!' . $params[0], $value);
+        return strtotime((string) $value) !== false;
+    }
+
+    /** @param list<string> $params */
+    private static function dateFormat(mixed $value, array $params): bool
+    {
+        if (count($params) !== 1 || $params[0] === '') {
+            throw InvalidRuleException::malformed('date_format', 'expected one date format');
+        }
+
+        if (!is_string($value)) {
+            return false;
+        }
+
+        $format = $params[0];
+        $date = DateTimeImmutable::createFromFormat('!' . $format, $value);
         $errors = DateTimeImmutable::getLastErrors();
 
         return $date !== false
             && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0))
-            && $date->format($params[0]) === $value;
+            && $date->format($format) === $value;
     }
 
     private static function json(mixed $value): bool
@@ -394,7 +450,25 @@ final class BuiltInRules
 
         $normalized = preg_replace('/[\s()-]+/', '', (string) $value);
 
-        return $normalized !== null && preg_match('/^(?:\+98|0098|98|0)?9\d{9}$/D', $normalized) === 1;
+        return $normalized !== null
+            && preg_match('/^(?:\+98|0098|98|0)?9\d{9}$/D', $normalized) === 1;
+    }
+
+    private static function toComparableString(mixed $value): ?string
+    {
+        if (is_string($value)) {
+            return $value;
+        }
+
+        if (is_int($value) || is_float($value)) {
+            return (string) $value;
+        }
+
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+
+        return null;
     }
 
     /** @param list<string> $params */
