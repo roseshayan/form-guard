@@ -1,6 +1,6 @@
 {
     "name": "roseshayan/form-guard",
-    "description": "A lightweight, framework-agnostic PHP validation library for forms, APIs, and plain PHP applications.",
+    "description": "A lightweight, framework-agnostic PHP validation library with first-class Iranian form validation rules.",
     "type": "library",
     "license": "MIT",
     "keywords": [
@@ -8,7 +8,13 @@
         "validator",
         "form",
         "php",
-        "input-validation"
+        "input-validation",
+        "iran",
+        "iranian",
+        "persian",
+        "national-code",
+        "sheba",
+        "iban"
     ],
     "homepage": "https://github.com/roseshayan/form-guard",
     "authors": [
@@ -50,6 +56,11 @@
     },
     "config": {
         "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "1.x-dev"
+        }
     },
     "minimum-stability": "stable",
     "prefer-stable": true

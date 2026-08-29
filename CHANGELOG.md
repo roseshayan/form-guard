@@ -6,6 +6,8 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-29
+
 ### Added
 
 - `Validator` as the primary public entry point while retaining `FormValidator` compatibility.
@@ -15,12 +17,16 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 - Strict `InvalidRuleException` handling for unknown/malformed rules.
 - Custom messages and human-readable attribute names.
 - Inline callable validation rules without global mutable registries.
-- Presence, type, format, size, comparison, date, JSON, IP, UUID, Iranian mobile, and flow-control rules.
+- Presence, type, format, size, comparison, date, JSON, IP, UUID, and flow-control rules.
+- Dedicated Iranian validation rules for mobile, landline, generic phone, natural-person national code, legal-entity national ID, postal code, Sheba/IBAN, and bank card numbers.
+- Persian and Arabic-Indic digit normalization inside Iranian rules without mutating validated input.
+- Aliases `ir_company_id`, `ir_iban`, and `ir_bank_card_number` for discoverable Iranian APIs.
 - Uploaded file abstraction with MIME detection, image, size, MIME, and extension rules.
-- PHPUnit coverage for core, nested, wildcard, custom, and file behavior.
+- PHPUnit coverage for core, built-in, Iranian, nested, wildcard, custom, and file behavior.
 - PHPStan static analysis.
 - GitHub Actions CI for PHP 8.2 through 8.5.
-- Complete README, rule reference, examples, security policy, and contributing guide.
+- Complete README, rule reference, Iranian validation guide, examples, security policy, and contributing guide.
+- Packagist-first release instructions with stable-tag immutability guidance.
 
 ### Changed
 
@@ -28,6 +34,8 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 - Validation no longer mutates or HTML-escapes input.
 - `validated()` now returns only rule-whitelisted data and throws after failed validation.
 - Rule evaluation has been separated from validation orchestration for maintainability.
+- Iranian rules are isolated in a dedicated evaluator instead of being mixed into generic rule logic.
+- Composer metadata now includes Iranian/Persian discovery keywords and a `dev-main` branch alias for the 1.x line.
 
 ### Removed
 

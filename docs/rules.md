@@ -44,7 +44,40 @@ or as an array. Array syntax is required when a regex itself contains `|` and is
 | `date` | Value must be parseable by PHP `strtotime()`. |
 | `date_format:Y-m-d` | Value must exactly match the supplied `DateTime` format. |
 | `regex:/pattern/` | Value must match the PCRE expression. Use array rule syntax if the pattern contains `|`. |
-| `ir_mobile` | Iranian mobile number in common `09...`, `98...`, `+98...`, or `0098...` forms. |
+
+## Iranian rules
+
+Iranian rules normalize both Persian digits (`۰۱۲۳۴۵۶۷۸۹`) and Arabic-Indic digits (`٠١٢٣٤٥٦٧٨٩`) to ASCII before validation where appropriate.
+
+| Rule | Meaning |
+| --- | --- |
+| `ir_mobile` | Iranian mobile number. Accepts common domestic and international forms such as `0912...`, `912...`, `+98912...`, `98912...`, and `0098912...`. |
+| `ir_landline` | Structural Iranian landline number validation. Accepts domestic/international prefixes and common spaces, parentheses, and hyphens. |
+| `ir_phone` | Accepts either a valid `ir_mobile` or `ir_landline`. |
+| `ir_national_code` | 10-digit Iranian natural-person national code with checksum validation. Obvious repeated-digit values are rejected. |
+| `ir_legal_id` | 11-digit national ID for Iranian legal entities with check-digit validation. |
+| `ir_company_id` | Alias of `ir_legal_id`. |
+| `ir_postal_code` | Structurally validates a 10-digit Iranian postal code and rejects repeated-digit placeholders. It does not verify that the code is assigned to an address. |
+| `ir_sheba` | Iranian 26-character Sheba/IBAN beginning with `IR`, validated using MOD-97. Spaces and hyphens are accepted for formatted input. |
+| `ir_iban` | Alias of `ir_sheba`. |
+| `ir_bank_card` | 16-digit Iranian bank card number with checksum validation. Spaces and hyphens are accepted. |
+| `ir_bank_card_number` | Alias of `ir_bank_card`. |
+
+Example:
+
+```php
+$validator = Validator::make($_POST, [
+    'mobile' => 'required|ir_mobile',
+    'national_code' => 'required|ir_national_code',
+    'postal_code' => 'required|ir_postal_code',
+    'sheba' => 'nullable|ir_sheba',
+    'card_number' => 'nullable|ir_bank_card',
+]);
+```
+
+These rules validate syntax and/or checksums only. A valid checksum does **not** prove that a national code, legal ID, bank card, Sheba, postal code, or phone number exists, is active, or belongs to the person submitting the form. Use the appropriate authoritative verification service when ownership or existence matters.
+
+See [iranian-validation.md](iranian-validation.md) for accepted formats, examples, normalization behavior, and security boundaries.
 
 ## Size and numeric rules
 

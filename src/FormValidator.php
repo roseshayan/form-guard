@@ -75,6 +75,16 @@ class FormValidator
         'ends_with' => 'The :attribute field must end with one of: :params.',
         'contains' => 'The :attribute field must contain :param.',
         'ir_mobile' => 'The :attribute field must be a valid Iranian mobile number.',
+        'ir_landline' => 'The :attribute field must be a valid Iranian landline number.',
+        'ir_phone' => 'The :attribute field must be a valid Iranian phone number.',
+        'ir_national_code' => 'The :attribute field must be a valid Iranian national code.',
+        'ir_legal_id' => 'The :attribute field must be a valid Iranian legal entity national ID.',
+        'ir_company_id' => 'The :attribute field must be a valid Iranian legal entity national ID.',
+        'ir_postal_code' => 'The :attribute field must be a valid 10-digit Iranian postal code.',
+        'ir_sheba' => 'The :attribute field must be a valid Iranian Sheba (IBAN).',
+        'ir_iban' => 'The :attribute field must be a valid Iranian Sheba (IBAN).',
+        'ir_bank_card' => 'The :attribute field must be a valid Iranian bank card number.',
+        'ir_bank_card_number' => 'The :attribute field must be a valid Iranian bank card number.',
     ];
 
     /** @var list<string> */
