@@ -66,7 +66,7 @@ final class BuiltInRules
             'email' => is_string($value) && filter_var($value, FILTER_VALIDATE_EMAIL) !== false,
             'url' => is_string($value) && filter_var($value, FILTER_VALIDATE_URL) !== false,
             'uuid' => is_string($value)
-                && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iD', $value) === 1,
+                && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iD', $value) === 1,
             'ip' => is_string($value) && filter_var($value, FILTER_VALIDATE_IP) !== false,
             'ipv4' => is_string($value)
                 && filter_var($value, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false,
@@ -301,7 +301,7 @@ final class BuiltInRules
     {
         $measure = self::measure($value, $fieldRuleNames);
 
-        return $measure !== null && $measure === self::numericParam($params, 'size');
+        return $measure !== null && (float) $measure === self::numericParam($params, 'size');
     }
 
     /** @param list<string> $fieldRuleNames */
