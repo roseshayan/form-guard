@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace RoseShayan\FormGuard;
 
-use DateTimeImmutable;
+use RoseShayan\FormGuard\Rules\BuiltInRules;
 use RoseShayan\FormGuard\Support\Arr;
 
 class FormValidator
@@ -23,13 +23,10 @@ class FormValidator
     private ErrorBag $errorBag;
     private bool $hasValidated = false;
 
-    /** @var list<string> */
-    private array $currentRuleNames = [];
-
     /** @var array<string, string> */
     private const DEFAULT_MESSAGES = [
         'required' => 'The :attribute field is required.',
-        'required_if' => 'The :attribute field is required when :other is :param.',
+        'required_if' => 'The :attribute field is required when :other matches a required value.',
         'required_with' => 'The :attribute field is required when :other is present.',
         'required_without' => 'The :attribute field is required when :other is not present.',
         'present' => 'The :attribute field must be present.',
@@ -39,6 +36,11 @@ class FormValidator
         'numeric' => 'The :attribute field must be numeric.',
         'boolean' => 'The :attribute field must be true or false.',
         'array' => 'The :attribute field must be an array.',
+        'file' => 'The :attribute field must be a valid uploaded file.',
+        'image' => 'The :attribute field must be a valid image.',
+        'max_file' => 'The :attribute file must not be larger than :param KiB.',
+        'mimetypes' => 'The :attribute file type must be one of: :params.',
+        'extensions' => 'The :attribute file extension must be one of: :params.',
         'email' => 'The :attribute field must be a valid email address.',
         'url' => 'The :attribute field must be a valid URL.',
         'uuid' => 'The :attribute field must be a valid UUID.',
@@ -119,10 +121,10 @@ class FormValidator
         array $messages = [],
         array $attributes = []
     ): static {
-        $instance = new static($data, $rules, $messages, $attributes);
-        $instance->validate();
+        $validator = new static($data, $rules, $messages, $attributes);
+        $validator->validate();
 
-        return $instance;
+        return $validator;
     }
 
     public function validate(): bool
@@ -132,18 +134,16 @@ class FormValidator
 
         foreach ($this->rules as $pattern => $definition) {
             $fieldRules = $this->normalizeRuleDefinition($definition);
-            $this->currentRuleNames = $this->extractRuleNames($fieldRules);
+            $ruleNames = $this->extractAndAssertRuleNames($fieldRules);
 
             $paths = str_contains($pattern, '*')
                 ? Arr::expandWildcardPaths($this->data, $pattern)
                 : [$pattern];
 
             foreach ($paths as $field) {
-                $this->validateField($field, $pattern, $fieldRules);
+                $this->validateField($field, $pattern, $fieldRules, $ruleNames);
             }
         }
-
-        $this->currentRuleNames = [];
 
         return $this->errorBag->isEmpty();
     }
@@ -222,28 +222,33 @@ class FormValidator
         return $this->validated();
     }
 
-    /** @param list<string|callable> $fieldRules */
-    private function validateField(string $field, string $pattern, array $fieldRules): void
-    {
+    /**
+     * @param list<string|callable> $fieldRules
+     * @param list<string> $ruleNames
+     */
+    private function validateField(
+        string $field,
+        string $pattern,
+        array $fieldRules,
+        array $ruleNames
+    ): void {
         $exists = Arr::has($this->data, $field);
         $value = Arr::get($this->data, $field);
 
-        if (in_array('sometimes', $this->currentRuleNames, true) && !$exists) {
+        if (in_array('sometimes', $ruleNames, true) && !$exists) {
             return;
         }
 
-        $isNullable = in_array('nullable', $this->currentRuleNames, true)
-            && ($value === null || $value === '');
+        $nullable = in_array('nullable', $ruleNames, true) && BuiltInRules::isBlank($value);
+        $bail = in_array('bail', $ruleNames, true);
 
-        $bail = in_array('bail', $this->currentRuleNames, true);
-
-        foreach ($fieldRules as $ruleDefinition) {
-            if (is_callable($ruleDefinition)) {
-                if (!$exists || $value === null || $value === '') {
+        foreach ($fieldRules as $definition) {
+            if (is_callable($definition)) {
+                if (!$exists || BuiltInRules::isBlank($value)) {
                     continue;
                 }
 
-                $result = $ruleDefinition($field, $value, $this->data);
+                $result = $definition($field, $value, $this->data);
                 if ($result === true || $result === null) {
                     continue;
                 }
@@ -264,34 +269,27 @@ class FormValidator
                 continue;
             }
 
-            [$rule, $params] = $this->parseRule($ruleDefinition);
+            [$rule, $params] = $this->parseRule($definition);
 
             if (in_array($rule, self::DIRECTIVE_RULES, true)) {
                 continue;
             }
 
-            $isImplicit = in_array($rule, self::IMPLICIT_RULES, true);
+            $implicit = in_array($rule, self::IMPLICIT_RULES, true);
 
-            if (!$exists && !$isImplicit) {
+            if (!$exists && !$implicit) {
                 continue;
             }
 
-            if ($isNullable && !$isImplicit) {
+            if ($nullable && !$implicit) {
                 continue;
             }
 
-            if (($value === null || $value === '') && !$isImplicit) {
+            if (BuiltInRules::isBlank($value) && !$implicit) {
                 continue;
             }
 
-            $method = 'validate' . str_replace(' ', '', ucwords(str_replace('_', ' ', $rule)));
-            if (!method_exists($this, $method)) {
-                throw InvalidRuleException::unknown($rule);
-            }
-
-            /** @var bool $valid */
-            $valid = $this->{$method}($value, $params, $field);
-            if ($valid) {
+            if (BuiltInRules::validate($rule, $value, $params, $field, $this->data, $ruleNames)) {
                 continue;
             }
 
@@ -310,11 +308,7 @@ class FormValidator
     private function normalizeRuleDefinition(string|array $definition): array
     {
         if (is_string($definition)) {
-            if ($definition === '') {
-                return [];
-            }
-
-            return explode('|', $definition);
+            return $definition === '' ? [] : explode('|', $definition);
         }
 
         return array_values($definition);
@@ -324,16 +318,24 @@ class FormValidator
      * @param list<string|callable> $rules
      * @return list<string>
      */
-    private function extractRuleNames(array $rules): array
+    private function extractAndAssertRuleNames(array $rules): array
     {
         $names = [];
 
-        foreach ($rules as $rule) {
-            if (!is_string($rule)) {
+        foreach ($rules as $definition) {
+            if (!is_string($definition)) {
                 continue;
             }
 
-            [$name] = $this->parseRule($rule);
+            [$name] = $this->parseRule($definition);
+
+            if (
+                !in_array($name, self::DIRECTIVE_RULES, true)
+                && !BuiltInRules::exists($name)
+            ) {
+                throw InvalidRuleException::unknown($name);
+            }
+
             $names[] = $name;
         }
 
@@ -344,6 +346,7 @@ class FormValidator
     private function parseRule(string $definition): array
     {
         $definition = trim($definition);
+
         if ($definition === '') {
             throw InvalidRuleException::malformed($definition, 'rule name cannot be empty');
         }
@@ -363,18 +366,20 @@ class FormValidator
             return [$name, [$parameterString]];
         }
 
-        $params = array_map(
-            static fn (string $param): string => trim($param),
-            explode(',', $parameterString)
-        );
-
-        return [$name, $params];
+        return [
+            $name,
+            array_map(
+                static fn (string $param): string => trim($param),
+                explode(',', $parameterString)
+            ),
+        ];
     }
 
     /** @param list<string> $params */
     private function addError(string $field, string $pattern, string $rule, array $params): void
     {
         $message = $this->resolveMessage($field, $pattern, $rule);
+
         $this->errorBag->add(
             $field,
             $this->replacePlaceholders($message, $field, $pattern, $params)
@@ -399,11 +404,10 @@ class FormValidator
         string $pattern,
         array $params
     ): string {
-        $attribute = $this->resolveAttribute($field, $pattern);
         $other = $params[0] ?? '';
 
         return strtr($message, [
-            ':attribute' => $attribute,
+            ':attribute' => $this->resolveAttribute($field, $pattern),
             ':field' => $field,
             ':param' => $params[0] ?? '',
             ':param2' => $params[1] ?? '',
@@ -430,472 +434,5 @@ class FormValidator
         if (!$this->hasValidated) {
             $this->validate();
         }
-    }
-
-    /** @param list<string> $params */
-    private function validateRequired(mixed $value, array $params, string $field): bool
-    {
-        return Arr::has($this->data, $field) && !$this->isEmpty($value);
-    }
-
-    /** @param list<string> $params */
-    private function validateRequiredIf(mixed $value, array $params, string $field): bool
-    {
-        if (count($params) < 2) {
-            throw InvalidRuleException::malformed('required_if', 'expected other field and at least one value');
-        }
-
-        $other = array_shift($params);
-        if ($other === null) {
-            return true;
-        }
-
-        $otherValue = Arr::get($this->data, $other);
-        $required = in_array((string) $otherValue, $params, true);
-
-        return !$required || $this->validateRequired($value, [], $field);
-    }
-
-    /** @param list<string> $params */
-    private function validateRequiredWith(mixed $value, array $params, string $field): bool
-    {
-        if ($params === []) {
-            throw InvalidRuleException::malformed('required_with', 'expected at least one field');
-        }
-
-        $required = false;
-        foreach ($params as $other) {
-            if (Arr::has($this->data, $other) && !$this->isEmpty(Arr::get($this->data, $other))) {
-                $required = true;
-                break;
-            }
-        }
-
-        return !$required || $this->validateRequired($value, [], $field);
-    }
-
-    /** @param list<string> $params */
-    private function validateRequiredWithout(mixed $value, array $params, string $field): bool
-    {
-        if ($params === []) {
-            throw InvalidRuleException::malformed('required_without', 'expected at least one field');
-        }
-
-        $required = false;
-        foreach ($params as $other) {
-            if (!Arr::has($this->data, $other) || $this->isEmpty(Arr::get($this->data, $other))) {
-                $required = true;
-                break;
-            }
-        }
-
-        return !$required || $this->validateRequired($value, [], $field);
-    }
-
-    /** @param list<string> $params */
-    private function validatePresent(mixed $value, array $params, string $field): bool
-    {
-        return Arr::has($this->data, $field);
-    }
-
-    /** @param list<string> $params */
-    private function validateFilled(mixed $value, array $params, string $field): bool
-    {
-        return !Arr::has($this->data, $field) || !$this->isEmpty($value);
-    }
-
-    /** @param list<string> $params */
-    private function validateString(mixed $value, array $params, string $field): bool
-    {
-        return is_string($value);
-    }
-
-    /** @param list<string> $params */
-    private function validateInteger(mixed $value, array $params, string $field): bool
-    {
-        if (is_int($value)) {
-            return true;
-        }
-
-        return is_string($value) && preg_match('/^[+-]?\d+$/D', $value) === 1;
-    }
-
-    /** @param list<string> $params */
-    private function validateNumeric(mixed $value, array $params, string $field): bool
-    {
-        return is_numeric($value);
-    }
-
-    /** @param list<string> $params */
-    private function validateBoolean(mixed $value, array $params, string $field): bool
-    {
-        return in_array($value, [true, false, 0, 1, '0', '1', 'true', 'false'], true);
-    }
-
-    /** @param list<string> $params */
-    private function validateArray(mixed $value, array $params, string $field): bool
-    {
-        return is_array($value);
-    }
-
-    /** @param list<string> $params */
-    private function validateEmail(mixed $value, array $params, string $field): bool
-    {
-        return is_string($value) && filter_var($value, FILTER_VALIDATE_EMAIL) !== false;
-    }
-
-    /** @param list<string> $params */
-    private function validateUrl(mixed $value, array $params, string $field): bool
-    {
-        return is_string($value) && filter_var($value, FILTER_VALIDATE_URL) !== false;
-    }
-
-    /** @param list<string> $params */
-    private function validateUuid(mixed $value, array $params, string $field): bool
-    {
-        return is_string($value)
-            && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iD', $value) === 1;
-    }
-
-    /** @param list<string> $params */
-    private function validateIp(mixed $value, array $params, string $field): bool
-    {
-        return is_string($value) && filter_var($value, FILTER_VALIDATE_IP) !== false;
-    }
-
-    /** @param list<string> $params */
-    private function validateIpv4(mixed $value, array $params, string $field): bool
-    {
-        return is_string($value) && filter_var($value, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false;
-    }
-
-    /** @param list<string> $params */
-    private function validateIpv6(mixed $value, array $params, string $field): bool
-    {
-        return is_string($value) && filter_var($value, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false;
-    }
-
-    /** @param list<string> $params */
-    private function validateAlpha(mixed $value, array $params, string $field): bool
-    {
-        return is_string($value) && preg_match('/^\p{L}+$/uD', $value) === 1;
-    }
-
-    /** @param list<string> $params */
-    private function validateAlphaNum(mixed $value, array $params, string $field): bool
-    {
-        return is_string($value) && preg_match('/^[\p{L}\p{N}]+$/uD', $value) === 1;
-    }
-
-    /** @param list<string> $params */
-    private function validateAlphaDash(mixed $value, array $params, string $field): bool
-    {
-        return is_string($value) && preg_match('/^[\p{L}\p{N}_-]+$/uD', $value) === 1;
-    }
-
-    /** @param list<string> $params */
-    private function validateMin(mixed $value, array $params, string $field): bool
-    {
-        $limit = $this->numericParameter($params, 'min');
-        $measure = $this->measure($value);
-
-        return $measure !== null && $measure >= $limit;
-    }
-
-    /** @param list<string> $params */
-    private function validateMax(mixed $value, array $params, string $field): bool
-    {
-        $limit = $this->numericParameter($params, 'max');
-        $measure = $this->measure($value);
-
-        return $measure !== null && $measure <= $limit;
-    }
-
-    /** @param list<string> $params */
-    private function validateBetween(mixed $value, array $params, string $field): bool
-    {
-        if (count($params) !== 2 || !is_numeric($params[0]) || !is_numeric($params[1])) {
-            throw InvalidRuleException::malformed('between', 'expected two numeric parameters');
-        }
-
-        $measure = $this->measure($value);
-        if ($measure === null) {
-            return false;
-        }
-
-        return $measure >= (float) $params[0] && $measure <= (float) $params[1];
-    }
-
-    /** @param list<string> $params */
-    private function validateSize(mixed $value, array $params, string $field): bool
-    {
-        $target = $this->numericParameter($params, 'size');
-        $measure = $this->measure($value);
-
-        return $measure !== null && $measure === $target;
-    }
-
-    /** @param list<string> $params */
-    private function validateMinLength(mixed $value, array $params, string $field): bool
-    {
-        return is_string($value)
-            && $this->stringLength($value) >= $this->numericParameter($params, 'min_length');
-    }
-
-    /** @param list<string> $params */
-    private function validateMaxLength(mixed $value, array $params, string $field): bool
-    {
-        return is_string($value)
-            && $this->stringLength($value) <= $this->numericParameter($params, 'max_length');
-    }
-
-    /** @param list<string> $params */
-    private function validateLength(mixed $value, array $params, string $field): bool
-    {
-        return is_string($value)
-            && $this->stringLength($value) === (int) $this->numericParameter($params, 'length');
-    }
-
-    /** @param list<string> $params */
-    private function validateMinValue(mixed $value, array $params, string $field): bool
-    {
-        return is_numeric($value) && (float) $value >= $this->numericParameter($params, 'min_value');
-    }
-
-    /** @param list<string> $params */
-    private function validateMaxValue(mixed $value, array $params, string $field): bool
-    {
-        return is_numeric($value) && (float) $value <= $this->numericParameter($params, 'max_value');
-    }
-
-    /** @param list<string> $params */
-    private function validateIn(mixed $value, array $params, string $field): bool
-    {
-        if ($params === []) {
-            throw InvalidRuleException::malformed('in', 'expected at least one allowed value');
-        }
-
-        return in_array((string) $value, $params, true);
-    }
-
-    /** @param list<string> $params */
-    private function validateNotIn(mixed $value, array $params, string $field): bool
-    {
-        if ($params === []) {
-            throw InvalidRuleException::malformed('not_in', 'expected at least one disallowed value');
-        }
-
-        return !in_array((string) $value, $params, true);
-    }
-
-    /** @param list<string> $params */
-    private function validateSame(mixed $value, array $params, string $field): bool
-    {
-        $other = $this->fieldParameter($params, 'same');
-
-        return $value === Arr::get($this->data, $other);
-    }
-
-    /** @param list<string> $params */
-    private function validateMatches(mixed $value, array $params, string $field): bool
-    {
-        return $this->validateSame($value, $params, $field);
-    }
-
-    /** @param list<string> $params */
-    private function validateDifferent(mixed $value, array $params, string $field): bool
-    {
-        $other = $this->fieldParameter($params, 'different');
-
-        return $value !== Arr::get($this->data, $other);
-    }
-
-    /** @param list<string> $params */
-    private function validateConfirmed(mixed $value, array $params, string $field): bool
-    {
-        $confirmationField = $field . '_confirmation';
-
-        return Arr::has($this->data, $confirmationField)
-            && $value === Arr::get($this->data, $confirmationField);
-    }
-
-    /** @param list<string> $params */
-    private function validateRegex(mixed $value, array $params, string $field): bool
-    {
-        if (count($params) !== 1 || $params[0] === '') {
-            throw InvalidRuleException::malformed('regex', 'expected one regular expression');
-        }
-
-        if (!is_string($value)) {
-            return false;
-        }
-
-        $result = @preg_match($params[0], $value);
-        if ($result === false) {
-            throw InvalidRuleException::malformed('regex', 'invalid regular expression');
-        }
-
-        return $result === 1;
-    }
-
-    /** @param list<string> $params */
-    private function validateDate(mixed $value, array $params, string $field): bool
-    {
-        return (is_string($value) || is_int($value)) && strtotime((string) $value) !== false;
-    }
-
-    /** @param list<string> $params */
-    private function validateDateFormat(mixed $value, array $params, string $field): bool
-    {
-        if (count($params) !== 1 || $params[0] === '') {
-            throw InvalidRuleException::malformed('date_format', 'expected one date format');
-        }
-
-        if (!is_string($value)) {
-            return false;
-        }
-
-        $date = DateTimeImmutable::createFromFormat('!' . $params[0], $value);
-        $errors = DateTimeImmutable::getLastErrors();
-
-        return $date !== false
-            && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0))
-            && $date->format($params[0]) === $value;
-    }
-
-    /** @param list<string> $params */
-    private function validateJson(mixed $value, array $params, string $field): bool
-    {
-        if (!is_string($value)) {
-            return false;
-        }
-
-        json_decode($value);
-
-        return json_last_error() === JSON_ERROR_NONE;
-    }
-
-    /** @param list<string> $params */
-    private function validateAccepted(mixed $value, array $params, string $field): bool
-    {
-        return in_array($value, ['yes', 'on', '1', 1, true, 'true'], true);
-    }
-
-    /** @param list<string> $params */
-    private function validateDeclined(mixed $value, array $params, string $field): bool
-    {
-        return in_array($value, ['no', 'off', '0', 0, false, 'false'], true);
-    }
-
-    /** @param list<string> $params */
-    private function validateStartsWith(mixed $value, array $params, string $field): bool
-    {
-        if (!is_string($value) || $params === []) {
-            return false;
-        }
-
-        foreach ($params as $prefix) {
-            if ($prefix !== '' && str_starts_with($value, $prefix)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /** @param list<string> $params */
-    private function validateEndsWith(mixed $value, array $params, string $field): bool
-    {
-        if (!is_string($value) || $params === []) {
-            return false;
-        }
-
-        foreach ($params as $suffix) {
-            if ($suffix !== '' && str_ends_with($value, $suffix)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /** @param list<string> $params */
-    private function validateContains(mixed $value, array $params, string $field): bool
-    {
-        if (!is_string($value) || count($params) !== 1 || $params[0] === '') {
-            return false;
-        }
-
-        return str_contains($value, $params[0]);
-    }
-
-    /** @param list<string> $params */
-    private function validateIrMobile(mixed $value, array $params, string $field): bool
-    {
-        if (!is_string($value) && !is_int($value)) {
-            return false;
-        }
-
-        $normalized = preg_replace('/[\s()-]+/', '', (string) $value);
-        if ($normalized === null) {
-            return false;
-        }
-
-        return preg_match('/^(?:\+98|0098|98|0)?9\d{9}$/D', $normalized) === 1;
-    }
-
-    private function isEmpty(mixed $value): bool
-    {
-        return $value === null || $value === '' || $value === [];
-    }
-
-    private function stringLength(string $value): int
-    {
-        return function_exists('mb_strlen') ? mb_strlen($value, 'UTF-8') : strlen($value);
-    }
-
-    private function measure(mixed $value): float|int|null
-    {
-        if (
-            (in_array('numeric', $this->currentRuleNames, true)
-                || in_array('integer', $this->currentRuleNames, true))
-            && is_numeric($value)
-        ) {
-            return (float) $value;
-        }
-
-        if (is_int($value) || is_float($value)) {
-            return $value;
-        }
-
-        if (is_array($value)) {
-            return count($value);
-        }
-
-        if (is_string($value)) {
-            return $this->stringLength($value);
-        }
-
-        return null;
-    }
-
-    /** @param list<string> $params */
-    private function numericParameter(array $params, string $rule): float
-    {
-        if (count($params) !== 1 || !is_numeric($params[0])) {
-            throw InvalidRuleException::malformed($rule, 'expected one numeric parameter');
-        }
-
-        return (float) $params[0];
-    }
-
-    /** @param list<string> $params */
-    private function fieldParameter(array $params, string $rule): string
-    {
-        if (count($params) !== 1 || $params[0] === '') {
-            throw InvalidRuleException::malformed($rule, 'expected one field name');
-        }
-
-        return $params[0];
     }
 }
