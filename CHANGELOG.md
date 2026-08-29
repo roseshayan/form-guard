@@ -6,6 +6,26 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 
 ## [Unreleased]
 
+### Added
+
+- Guarded GitHub Actions release workflow that validates the exact `main` commit before creating any stable tag.
+- Production archive smoke test that verifies `Validator`, Composer autoloading, and representative Iranian rules from an exported `--no-dev` package.
+- PHPUnit/Xdebug coverage generation with an 85% statement-coverage quality gate.
+- PHP-CS-Fixer code-style checks and local `composer lint` / `composer fix` commands.
+- Roave Backward Compatibility Check in an isolated PHP 8.5 CI job.
+
+### Changed
+
+- `composer check` now includes code-style validation in addition to tests and PHPStan.
+- Release documentation now uses the guarded Actions workflow instead of manual stable tagging.
+- Development-only tooling is excluded from exported source archives.
+
+## [1.0.1] - 2026-08-29
+
+### Fixed
+
+- Published the intended production-ready code after `v1.0.0` had mistakenly been tagged against a pre-merge commit. The immutable `v1.0.0` tag was left untouched and the corrected package was released as `v1.0.1`.
+
 ## [1.0.0] - 2026-08-29
 
 ### Added
