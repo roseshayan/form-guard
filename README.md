@@ -1,8 +1,8 @@
 # FormGuard
 
-A lightweight, framework-agnostic PHP validation library for forms, APIs, and plain PHP applications.
+A lightweight, framework-agnostic PHP validation library for forms, APIs, and plain PHP applications, with first-class rules for common Iranian form fields.
 
-FormGuard gives you a small Laravel-style validation DSL without requiring Laravel, Symfony, or any other framework. It supports nested data, wildcard fields, custom messages, inline custom rules, uploaded files, and safe whitelisting through `validated()`.
+FormGuard gives you a small Laravel-style validation DSL without requiring Laravel, Symfony, or any other framework. It supports nested data, wildcard fields, custom messages, inline custom rules, uploaded files, Iranian identifiers and banking fields, and safe whitelisting through `validated()`.
 
 ## Why FormGuard?
 
@@ -10,6 +10,8 @@ FormGuard gives you a small Laravel-style validation DSL without requiring Larav
 - Small public API: `Validator::make()`, `passes()`, `fails()`, `errors()`, `errorBag()`, and `validated()`.
 - Strict configuration: unknown rules throw an `InvalidRuleException` instead of silently passing.
 - Nested input: validate `user.email` and wildcard paths such as `items.*.sku`.
+- Iranian forms: national code, legal-entity national ID, mobile/landline, postal code, Sheba/IBAN, and bank-card validation.
+- Persian-digit friendly: Iranian rules accept Persian and Arabic-Indic digits without mutating the original input.
 - Unicode-aware string validation through `mbstring`.
 - Upload validation using server-side MIME detection through `fileinfo`.
 - No framework runtime dependencies.
@@ -23,15 +25,13 @@ FormGuard gives you a small Laravel-style validation DSL without requiring Larav
 
 ## Installation
 
-### Packagist
-
-After the first tagged release is registered on Packagist:
+Install the stable package from Packagist:
 
 ```bash
 composer require roseshayan/form-guard
 ```
 
-### Install directly from GitHub before the Packagist release
+Until the first Packagist release is registered, the repository can also be installed directly from GitHub:
 
 ```bash
 composer config repositories.form-guard vcs https://github.com/roseshayan/form-guard.git
@@ -68,6 +68,28 @@ $data = $validator->validated();
 ```
 
 `confirmed` expects a sibling field named `<field>_confirmation`, for example `password_confirmation`.
+
+## Iranian forms
+
+A typical Iranian registration form can stay compact:
+
+```php
+$validator = Validator::make($_POST, [
+    'full_name' => 'required|string|min:2|max:100',
+    'mobile' => 'required|ir_mobile',
+    'national_code' => 'required|ir_national_code',
+    'postal_code' => 'nullable|ir_postal_code',
+    'phone' => 'nullable|ir_phone',
+    'sheba' => 'nullable|ir_sheba',
+    'card_number' => 'nullable|ir_bank_card',
+]);
+```
+
+Company forms can use `ir_legal_id` (or its alias `ir_company_id`). `ir_iban` is an alias for `ir_sheba`, and `ir_bank_card_number` is an alias for `ir_bank_card`.
+
+Iranian rules understand Persian digits, so values such as `۰۹۱۲۱۲۳۴۵۶۷` and `۰۰۱۳۵۴۲۴۱۹` are validated without forcing the user to switch keyboard digits.
+
+These rules validate structure and checksums locally. They do **not** prove identity, ownership, account status, company registration status, or postal-address existence. See [docs/iranian-validation.md](docs/iranian-validation.md) for the complete behavior and security boundary.
 
 ## Nested arrays and wildcards
 
@@ -176,6 +198,8 @@ Calling `validated()` after failed validation also throws `ValidationException`.
 
 See [docs/rules.md](docs/rules.md) for the complete built-in rule list and semantics.
 
+For Iranian-specific fields and accepted formats, see [docs/iranian-validation.md](docs/iranian-validation.md).
+
 ## Important security boundary
 
 FormGuard validates and **whitelists** input. It intentionally does not call `htmlspecialchars()`, strip HTML globally, escape SQL, or mutate your values.
@@ -191,7 +215,7 @@ $stmt = $pdo->prepare('INSERT INTO users (email) VALUES (:email)');
 $stmt->execute(['email' => $data['email']]);
 ```
 
-Validation is not a replacement for CSRF protection, authorization, prepared SQL statements, contextual HTML/JavaScript escaping, antivirus scanning, or secure upload storage.
+Validation is not a replacement for CSRF protection, authorization, prepared SQL statements, contextual HTML/JavaScript escaping, antivirus scanning, secure upload storage, identity verification, or banking ownership checks.
 
 ## Regex note
 
