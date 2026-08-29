@@ -9,6 +9,7 @@ final class Arr
     {
     }
 
+    /** @param array<array-key, mixed> $data */
     public static function has(array $data, string $path): bool
     {
         if ($path === '') {
@@ -26,6 +27,7 @@ final class Arr
         return true;
     }
 
+    /** @param array<array-key, mixed> $data */
     public static function get(array $data, string $path, mixed $default = null): mixed
     {
         if ($path === '') {
@@ -43,6 +45,7 @@ final class Arr
         return $current;
     }
 
+    /** @param array<array-key, mixed> $data */
     public static function set(array &$data, string $path, mixed $value): void
     {
         $segments = explode('.', $path);
@@ -67,6 +70,7 @@ final class Arr
      * at the wildcard level. Missing leaf keys are intentionally retained so
      * rules such as required still work for every existing array item.
      *
+     * @param array<array-key, mixed> $data
      * @return list<string>
      */
     public static function expandWildcardPaths(array $data, string $pattern): array
@@ -89,9 +93,6 @@ final class Arr
         }
 
         $segment = array_shift($segments);
-        if ($segment === null) {
-            return [];
-        }
 
         if ($segment === '*') {
             if (!is_array($current)) {
