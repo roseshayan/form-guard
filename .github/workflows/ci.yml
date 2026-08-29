@@ -42,7 +42,7 @@ jobs:
         run: composer test
 
   static-analysis:
-    name: Static analysis and dependency audit
+    name: Static analysis, style and dependency audit
     runs-on: ubuntu-latest
 
     steps:
@@ -67,3 +67,64 @@ jobs:
 
       - name: Run PHPStan
         run: composer analyse
+
+      - name: Check code style
+        run: composer lint
+
+  coverage:
+    name: Coverage gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP with Xdebug
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: mbstring, fileinfo
+          coverage: xdebug
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Generate coverage
+        run: composer coverage
+
+      - name: Enforce coverage floor
+        run: composer coverage:check
+
+  backward-compatibility:
+    name: Backward compatibility
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout full history and tags
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: mbstring, fileinfo, dom, simplexml
+          coverage: none
+          tools: composer:v2
+
+      - name: Install project dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Install BC checker in isolated Composer home
+        run: composer global require --no-interaction --no-progress roave/backward-compatibility-check:^8.21
+
+      - name: Check public API for BC breaks
+        shell: bash
+        run: |
+          BC_BIN="$(composer global config bin-dir --absolute)/roave-backward-compatibility-check"
+          "$BC_BIN" --format=github-actions
