@@ -16,7 +16,7 @@ final class UploadedFile
     ) {
     }
 
-    /** @param array<string, mixed> $file */
+    /** @param array<array-key, mixed> $file */
     public static function fromArray(array $file): ?self
     {
         if (!isset($file['name'], $file['tmp_name'], $file['error'], $file['size'])) {
