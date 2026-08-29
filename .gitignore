@@ -1,6 +1,10 @@
 /vendor/
 composer.lock
+.phpunit.cache/
+.phpstan-cache/
+coverage/
 .DS_Store
+Thumbs.db
 .idea/
 .vscode/
 *.log
