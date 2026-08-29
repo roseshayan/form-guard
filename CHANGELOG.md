@@ -6,6 +6,8 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-08-30
+
 ### Added
 
 - Guarded GitHub Actions release workflow that validates the exact `main` commit before creating any stable tag.
