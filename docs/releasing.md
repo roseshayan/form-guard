@@ -1,101 +1,91 @@
 # Release process
 
-FormGuard follows Semantic Versioning after the first stable release.
+FormGuard follows Semantic Versioning. Stable Composer versions are derived from Git tags and must never be moved after publication.
 
-## First public release checklist
+## Normal release flow
 
-1. Merge the release pull request into `main`.
-2. Confirm the `CI` workflow is green on PHP 8.2, 8.3, 8.4, and 8.5, including PHPStan and `composer audit`.
-3. Run locally:
-
-   ```bash
-   composer validate --strict
-   composer check
-   composer audit
-   ```
-
-4. Review `CHANGELOG.md` and move the relevant entries from `Unreleased` into a dated `1.0.0` section.
-5. Create an **annotated** Git tag from the exact reviewed `main` commit:
-
-   ```bash
-   git checkout main
-   git pull --ff-only
-   git tag -a v1.0.0 -m "FormGuard v1.0.0"
-   git push origin v1.0.0
-   ```
-
-6. Create a GitHub Release from `v1.0.0` using the changelog notes.
-7. Sign in to Packagist and submit the public repository URL:
-
-   ```text
-   https://github.com/roseshayan/form-guard
-   ```
-
-   The Composer package name is read from `composer.json` and must resolve to `roseshayan/form-guard`.
-
-8. Enable automatic Packagist updates from GitHub. Configure a GitHub webhook using the Packagist API token from the maintainer profile and send push events to Packagist's GitHub endpoint.
-9. Verify the stable release from a clean directory:
+1. Prepare a release PR against `main`.
+2. Update `CHANGELOG.md` for the version being released.
+3. Merge only after the `CI` workflow is green.
+4. Confirm the final `main` commit contains exactly the intended release changes.
+5. In GitHub, open **Actions → Release → Run workflow**.
+6. Select the `main` branch and enter a stable tag such as `v1.0.2`.
+7. Let the workflow complete. Do not create the tag manually.
+8. Confirm the GitHub Release exists and Packagist receives the new tag through the configured GitHub hook.
+9. Verify the public install from a clean directory:
 
    ```bash
    mkdir form-guard-install-test
    cd form-guard-install-test
-   composer require roseshayan/form-guard:^1.0
+   composer require "roseshayan/form-guard:^1.0"
    composer show roseshayan/form-guard
    ```
 
-10. Confirm Packagist displays the correct source commit for `1.0.0` and that the package page has no validation/security warnings.
-11. Remove the temporary pre-Packagist VCS installation note from the README after the stable package is confirmed live.
+## What the Release workflow protects
 
-## Packagist API alternative
+The release workflow refuses to publish from anything except `main` and requires a strict `vMAJOR.MINOR.PATCH` version. Before a tag exists, it runs:
 
-Packagist also exposes an authenticated package-creation API. Do not commit or paste the token into this repository.
+- `composer validate`;
+- PHPUnit;
+- PHPStan;
+- PHP-CS-Fixer in dry-run mode;
+- `composer audit`;
+- the coverage quality gate;
+- Roave Backward Compatibility Check;
+- a production export using `git archive`;
+- a `composer install --no-dev` inside the exported package;
+- a runtime smoke test for `RoseShayan\\FormGuard\\Validator` and representative Iranian validation rules.
 
-Example from a trusted local terminal or secret-managed CI environment:
+Only after all of those checks pass does the workflow create an annotated tag pointing at the exact checked `main` commit and publish the GitHub Release.
 
-```bash
-curl -X POST \
-  -H 'Content-Type: application/json' \
-  -H 'Authorization: Bearer PACKAGIST_USERNAME:PACKAGIST_MAIN_API_TOKEN' \
-  'https://packagist.org/api/create-package' \
-  -d '{"repository":"https://github.com/roseshayan/form-guard"}'
-```
-
-Package creation requires the **main** Packagist API token. Package updates may use a safe token. Prefer the Packagist UI for the first publication unless there is a reason to automate it.
+This ordering is intentional: a release tag is a production deployment, not a build trigger that may later fail.
 
 ## Stable tags are immutable
 
-Packagist stable version references are immutable. Once `v1.0.0` has been published, do **not** delete, move, or recreate that tag to fix a mistake.
+Once Packagist has published a stable version, never delete, move, or recreate its tag. If a published version is wrong, fix the issue and release the next patch version.
 
-If `1.0.0` is wrong, fix the code and release `1.0.1`. Packagist intentionally blocks stable retags so every user receives the same commit for the same version.
-
-Treat tagging as a production deployment: review the exact commit before creating the tag.
+The initial `v1.0.0` release demonstrated why this matters: it was tagged against a pre-merge commit. The corrected code was therefore published as `v1.0.1` instead of retagging `v1.0.0`.
 
 ## Versioning policy
 
-- PATCH: bug fixes with no documented API break.
-- MINOR: backward-compatible rules/features.
+- PATCH: backward-compatible bug fixes and release/tooling corrections.
+- MINOR: backward-compatible features and new validation rules.
 - MAJOR: public API or documented semantic breaks.
 
-Do not put a hardcoded package version in `composer.json`; Composer derives stable versions from Git tags and dev versions from branches.
+Do not put a hardcoded version in `composer.json`.
+
+## Backward compatibility
+
+CI runs Roave Backward Compatibility Check against the latest stable tag. The BC checker is deliberately installed in an isolated Composer home on PHP 8.5 instead of being added to FormGuard's root `require-dev`, because current Roave releases require newer PHP than FormGuard's PHP 8.2 minimum.
+
+A BC failure is not automatically a bug: an intentional public API break belongs in a new major release. For a patch or minor release, however, an unexpected BC failure blocks the release.
+
+## Coverage policy
+
+CI produces Clover coverage with Xdebug and enforces a minimum statement-coverage floor. The initial floor is 85%. Treat this as a ratchet: it may increase as the suite improves, but it should not be lowered merely to make a failing change pass.
+
+Coverage is not sufficient by itself. New rules must still include meaningful positive, negative, boundary, malformed-input, and normalization tests where applicable.
 
 ## Maintainer security
 
 For a public dependency, maintainer-account security is part of package security:
 
 - enable MFA on GitHub and Packagist;
-- do not store Packagist tokens in the repository;
-- use the least-privileged/safe token for update automation when possible;
-- protect `main` and require CI before merge once the project has external users;
-- never force-move a published stable tag.
+- never commit Packagist or GitHub tokens;
+- keep the Packagist GitHub hook enabled;
+- protect `main` and stable tags with GitHub Rulesets;
+- block force-pushes and tag deletion where possible;
+- never bypass a failed release quality gate by manually creating the same stable tag.
 
 ## Release quality gate
 
-Do not tag a release when any of these are true:
+Do not publish when any of these are true:
 
 - CI is red or missing on a supported PHP version;
-- the README documents behavior that is not tested;
-- a new built-in rule is missing tests or rule-reference documentation;
-- `composer validate --strict` fails;
+- Composer metadata validation fails;
 - `composer audit` reports an unresolved relevant advisory;
-- a known validation bypass or file-validation security issue is unresolved;
-- a release tag points at a commit other than the reviewed `main` commit.
+- PHPUnit, PHPStan, code style, coverage, or BC checks fail;
+- the exported package cannot install with `--no-dev`;
+- the exported package does not expose the documented public entry point;
+- a new built-in rule is missing tests or rule-reference documentation;
+- a known validation bypass or file-validation security issue is unresolved.

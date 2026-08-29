@@ -1,0 +1,205 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Stable SemVer tag to publish (for example v1.0.2)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: formguard-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Validate, smoke-test and publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Require main branch
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
+            echo "::error::Releases must be dispatched from the main branch."
+            exit 1
+          fi
+
+      - name: Validate version input
+        id: version
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version must match vMAJOR.MINOR.PATCH, for example v1.0.2."
+            exit 1
+          fi
+          echo "tag=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact main commit with tags
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Refuse an existing tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.tag }}
+        run: |
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${VERSION}" >/dev/null 2>&1; then
+            echo "::error::Tag ${VERSION} already exists and will never be moved or recreated."
+            exit 1
+          fi
+
+      - name: Setup PHP with Xdebug
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: mbstring, fileinfo, dom, simplexml
+          coverage: xdebug
+          tools: composer:v2
+
+      - name: Validate Composer metadata
+        run: composer validate --strict --no-check-publish
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Run unit tests
+        run: composer test
+
+      - name: Run static analysis
+        run: composer analyse
+
+      - name: Check code style
+        run: composer lint
+
+      - name: Audit dependencies
+        run: composer audit --no-interaction
+
+      - name: Enforce coverage floor
+        run: |
+          composer coverage
+          composer coverage:check
+
+      - name: Install isolated BC checker
+        run: composer global require --no-interaction --no-progress roave/backward-compatibility-check:^8.21
+
+      - name: Check backward compatibility
+        shell: bash
+        run: |
+          BC_BIN="$(composer global config bin-dir --absolute)/roave-backward-compatibility-check"
+          "$BC_BIN" --format=github-actions
+
+      - name: Build exported source archive
+        shell: bash
+        run: |
+          EXPORT_ROOT="${RUNNER_TEMP}/formguard-export"
+          mkdir -p "$EXPORT_ROOT"
+          git archive --format=tar --prefix=form-guard/ "$GITHUB_SHA" | tar -xf - -C "$EXPORT_ROOT"
+
+          test -f "$EXPORT_ROOT/form-guard/composer.json"
+          test -f "$EXPORT_ROOT/form-guard/src/Validator.php"
+          test -f "$EXPORT_ROOT/form-guard/src/FormValidator.php"
+          test -f "$EXPORT_ROOT/form-guard/src/Rules/IranianRules.php"
+
+      - name: Smoke-test exported production package
+        shell: bash
+        run: |
+          PACKAGE_ROOT="${RUNNER_TEMP}/formguard-export/form-guard"
+          cd "$PACKAGE_ROOT"
+
+          composer install --no-dev --no-interaction --prefer-dist --no-progress --optimize-autoloader
+
+          cat > /tmp/formguard-smoke.php <<'PHP'
+          <?php
+          declare(strict_types=1);
+
+          require getenv('PACKAGE_ROOT') . '/vendor/autoload.php';
+
+          use RoseShayan\FormGuard\Validator;
+
+          if (!class_exists(Validator::class)) {
+              fwrite(STDERR, "Validator class is missing from the exported package.\n");
+              exit(1);
+          }
+
+          $validator = Validator::make(
+              [
+                  'email' => 'release@example.com',
+                  'mobile' => '۰۹۱۲۱۲۳۴۵۶۷',
+                  'national_code' => '0013542419',
+              ],
+              [
+                  'email' => 'required|email',
+                  'mobile' => 'required|ir_mobile',
+                  'national_code' => 'required|ir_national_code',
+              ]
+          );
+
+          if ($validator->fails()) {
+              fwrite(STDERR, 'Production archive smoke test failed: ' . json_encode($validator->errors()) . "\n");
+              exit(1);
+          }
+
+          fwrite(STDOUT, "Production archive smoke test passed.\n");
+          PHP
+
+          PACKAGE_ROOT="$PACKAGE_ROOT" php /tmp/formguard-smoke.php
+
+      - name: Create immutable-intent annotated tag
+        id: tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.tag }}
+        run: |
+          TAG_OBJECT_SHA="$(gh api \
+            --method POST \
+            "repos/${GITHUB_REPOSITORY}/git/tags" \
+            -f tag="$VERSION" \
+            -f message="FormGuard ${VERSION}" \
+            -f object="$GITHUB_SHA" \
+            -f type="commit" \
+            --jq '.sha')"
+
+          gh api \
+            --method POST \
+            "repos/${GITHUB_REPOSITORY}/git/refs" \
+            -f ref="refs/tags/${VERSION}" \
+            -f sha="$TAG_OBJECT_SHA" >/dev/null
+
+          echo "tag_object_sha=$TAG_OBJECT_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.tag }}
+        run: |
+          gh release create "$VERSION" \
+            --verify-tag \
+            --target "$GITHUB_SHA" \
+            --title "FormGuard ${VERSION}" \
+            --generate-notes
+
+      - name: Release summary
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.tag }}
+        run: |
+          {
+            echo "## FormGuard ${VERSION} published"
+            echo
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Annotated tag created only after all quality gates passed."
+            echo "- Production export installed with \`--no-dev\` and smoke-tested."
+            echo "- Packagist should receive the tag through the configured GitHub hook."
+          } >> "$GITHUB_STEP_SUMMARY"

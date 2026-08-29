@@ -33,6 +33,7 @@
         "ext-mbstring": "*"
     },
     "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.95",
         "phpstan/phpstan": "^2.2",
         "phpunit/phpunit": "^11.5"
     },
@@ -48,10 +49,15 @@
     },
     "scripts": {
         "test": "phpunit",
+        "coverage": "phpunit --coverage-text --coverage-clover=coverage/clover.xml",
+        "coverage:check": "php tools/check-coverage.php coverage/clover.xml 85",
         "analyse": "phpstan analyse --memory-limit=1G",
+        "lint": "php-cs-fixer fix --dry-run --diff --ansi",
+        "fix": "php-cs-fixer fix",
         "check": [
             "@test",
-            "@analyse"
+            "@analyse",
+            "@lint"
         ]
     },
     "config": {
