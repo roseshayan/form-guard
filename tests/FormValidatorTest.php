@@ -123,8 +123,15 @@ final class FormValidatorTest extends TestCase
             [
                 'slug' => [
                     'required',
-                    static fn (string $field, mixed $value, array $data): bool|string =>
-                        $value === strtolower((string) $value) ?: 'The :attribute must be lowercase.',
+                    static function (string $field, mixed $value, array $data): bool|string {
+                        if (!is_string($value)) {
+                            return 'The :attribute must be a string.';
+                        }
+
+                        return $value === strtolower($value)
+                            ? true
+                            : 'The :attribute must be lowercase.';
+                    },
                 ],
             ]
         );
