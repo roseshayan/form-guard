@@ -1,20 +1,57 @@
 {
     "name": "roseshayan/form-guard",
-    "description": "A secure, zero-dependency, and lightweight PHP form validation and sanitization library.",
+    "description": "A lightweight, framework-agnostic PHP validation library for forms, APIs, and plain PHP applications.",
     "type": "library",
     "license": "MIT",
+    "keywords": [
+        "validation",
+        "validator",
+        "form",
+        "php",
+        "input-validation"
+    ],
+    "homepage": "https://github.com/roseshayan/form-guard",
     "authors": [
         {
             "name": "Shayan Namayandeh",
             "homepage": "https://github.com/roseshayan"
         }
     ],
+    "support": {
+        "issues": "https://github.com/roseshayan/form-guard/issues",
+        "source": "https://github.com/roseshayan/form-guard"
+    },
+    "require": {
+        "php": ">=8.2"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^2.2",
+        "phpunit/phpunit": "^11.5"
+    },
+    "suggest": {
+        "ext-mbstring": "Recommended for accurate Unicode string length validation."
+    },
     "autoload": {
         "psr-4": {
             "RoseShayan\\FormGuard\\": "src/"
         }
     },
-    "require": {
-        "php": ">=8.1"
-    }
+    "autoload-dev": {
+        "psr-4": {
+            "RoseShayan\\FormGuard\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "analyse": "phpstan analyse --memory-limit=1G",
+        "check": [
+            "@test",
+            "@analyse"
+        ]
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
 }
