@@ -33,7 +33,7 @@ or as an array. Array syntax is required when a regex itself contains `|` and is
 | `array` | Value must be an array. |
 | `email` | Uses PHP's `FILTER_VALIDATE_EMAIL`. |
 | `url` | Uses PHP's `FILTER_VALIDATE_URL`. This validates URL syntax, not whether a scheme is safe for your output context. |
-| `uuid` | UUID versions 1 through 5 with RFC variant bits. |
+| `uuid` | RFC/IETF-variant UUID versions 1 through 8, including UUIDv7. Reserved version values are rejected. |
 | `ip` | IPv4 or IPv6. |
 | `ipv4` | IPv4 only. |
 | `ipv6` | IPv6 only. |
@@ -134,7 +134,11 @@ If an item exists but its leaf key is missing, implicit rules such as `required`
 'slug' => [
     'required',
     static function (string $field, mixed $value, array $data): bool|string {
-        return preg_match('/^[a-z0-9-]+$/', (string) $value) === 1
+        if (!is_string($value)) {
+            return 'The :attribute must be a string.';
+        }
+
+        return preg_match('/^[a-z0-9-]+$/', $value) === 1
             ? true
             : 'The :attribute must be a lowercase slug.';
     },
