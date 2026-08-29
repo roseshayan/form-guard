@@ -243,7 +243,7 @@ class FormValidator
         $bail = in_array('bail', $ruleNames, true);
 
         foreach ($fieldRules as $definition) {
-            if (!is_string($definition) && is_callable($definition)) {
+            if (!is_string($definition)) {
                 if (!$exists || BuiltInRules::isBlank($value)) {
                     continue;
                 }
