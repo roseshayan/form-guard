@@ -96,7 +96,7 @@ class FormValidator
      * @param array<string, string> $messages
      * @param array<string, string> $attributes
      */
-    public function __construct(
+    final public function __construct(
         array $data = [],
         array $rules = [],
         array $messages = [],
@@ -243,7 +243,7 @@ class FormValidator
         $bail = in_array('bail', $ruleNames, true);
 
         foreach ($fieldRules as $definition) {
-            if (is_callable($definition)) {
+            if (!is_string($definition) && is_callable($definition)) {
                 if (!$exists || BuiltInRules::isBlank($value)) {
                     continue;
                 }
