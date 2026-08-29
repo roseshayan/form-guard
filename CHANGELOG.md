@@ -6,6 +6,8 @@ The format is based on Keep a Changelog and the project follows Semantic Version
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-29
+
 ### Added
 
 - `Validator` as the primary public entry point while retaining `FormValidator` compatibility.
