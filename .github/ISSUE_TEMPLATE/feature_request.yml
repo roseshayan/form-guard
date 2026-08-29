@@ -1,0 +1,33 @@
+name: Feature request
+description: Propose a validation rule or API improvement
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Describe the real validation use case rather than only the proposed API.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Include example input/rules/API when useful.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: The feature belongs in a framework-agnostic validation library.
+          required: true
+        - label: I considered whether an inline callable rule already solves this cleanly.
+          required: true
