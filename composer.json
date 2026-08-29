@@ -22,14 +22,12 @@
         "source": "https://github.com/roseshayan/form-guard"
     },
     "require": {
-        "php": ">=8.2"
+        "php": ">=8.2",
+        "ext-mbstring": "*"
     },
     "require-dev": {
         "phpstan/phpstan": "^2.2",
         "phpunit/phpunit": "^11.5"
-    },
-    "suggest": {
-        "ext-mbstring": "Recommended for accurate Unicode string length validation."
     },
     "autoload": {
         "psr-4": {
