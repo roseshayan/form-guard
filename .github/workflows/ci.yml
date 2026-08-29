@@ -20,13 +20,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
-          extensions: mbstring
+          extensions: mbstring, fileinfo
           coverage: none
           tools: composer:v2
 
@@ -40,23 +42,28 @@ jobs:
         run: composer test
 
   static-analysis:
-    name: Static analysis
+    name: Static analysis and dependency audit
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.5'
-          extensions: mbstring
+          extensions: mbstring, fileinfo
           coverage: none
           tools: composer:v2
 
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Audit dependencies
+        run: composer audit --locked --no-interaction
 
       - name: Run PHPStan
         run: composer analyse
